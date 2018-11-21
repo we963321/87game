@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>vue</title>
+    <meta charset="utf-8">
+    <script type="text/javascript" src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.13/vue.min.js"></script>
+
+    <style type="text/css">
+        .cube{
+            position:absolute;
+            background-image: url("coin.png");
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+
+        .player{
+            position:absolute;
+            background-image: url("player.jpg");
+            background-size: contain;
+            background-repeat: no-repeat;
+            color: black;
+        }
+
+        #gameContent{
+            position: absolute;
+            left: 200px;
+            top: 100px;
+            border-style: solid;
+            background-image: url("bk.jpg");
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+
+        .score{
+            display: inline;
+            font-size: 30pt;
+            font-weight: 900;
+            color:yellow;
+            float: right;
+            margin-right: 10px;
+            z-index: 99;
+        }
+
+        .timer{
+            display: inline;
+            font-size: 30pt;
+            font-weight: 900;
+            color:white;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+
+  <div class="content">
+    <div id="gameContent"> 
+        <!--
+        <button @click="startGame">start</button>
+        -->
+        <!--
+        <button @click="stopGame">stop</button>
+        -->
+
+        <!--<button @click="restart">restart</button>-->
+        <cube-data v-for="item in box" :cube="item" :dropping="status"></cube-data>
+        <player :moving="moving"  :player_left="set_player_left"></player>
+
+        <div style="text-align: center;">
+          <div class="score"><span v-html="score"></span>G</div>
+          <div class="timer">
+            <span v-html="ready_times" :style="ready_times_status"></span>
+            <span v-html="times" :style="times_status"></span>
+          </div>
+      </div>
+    </div>
+    
+  </div>
+
+  <template id="cube-data">
+      <div :style="skin" :id="cube.id" class="cube"></div>
+  </template>
+
+  <template id="player-data">
+      <div :style="skin" id="player" class="player"></div>
+  </template>
+
+
+</body>
+</html>
+<script type="text/javascript">
+
+  (function(Vue){
+
+      const cube_skin = {
+          "width" : "50px",
+          "height" : "50px",
+      };
+
+      const player_skin = {
+          "width" : "50px",
+          "height" : "50px",
+          "top" : "400px",
+      };
+
+      const cubeData = {
+          template: "#cube-data",
+          props: ['cube','dropping'],
+          data (){
+            return {
+              timer: [],
+              player: '',
+              cube_width: parseInt(cube_skin.width),
+              height_difference: parseInt(cube_skin.height) - parseInt(player_skin.height),
+              top_hit: data.limit - parseInt(player_skin.height)
+            };
+          },
+          mounted(){
+            let rand =  Math.floor((Math.random() * 100) + 1); //隨機速度
+
+            this.player = document.getElementById('player');
+
+            this.timer[this.cube.round] = setInterval(() => {
+              this.down(this.cube);
+            }, game.down_speed + rand);
+          },
+          computed: {
+            skin(){
+
+              let url = '';
+
+              switch(this.cube.type){
+                  case 'bang':
+                    url = 'url("bang.png")';
+                  break;
+
+                  case 'diamond':
+                    url = 'url("diamond.png")';
+                  break;
+
+                  case 'timer':
+                    url = 'url("timer.png")';
+                  break;
+              }
+
+              return {
+                'width': cube_skin.width,
+                'height': cube_skin.height,
+                'left': this.cube.left+'px',
+                'top': this.cube.top+'px',
+                'background-image' : url,
+              };
+            },
+          },
+          methods: {
+            down(cube){
+              if(!this.dropping){
+                  clearInterval(this.timer[cube.round]);
+              }
+
+              let top = parseInt(cube.top);
+              let left = parseInt(cube.left);
+
+              top += 20;
+              cube.top = top;
+            
+              let player_left = parseInt(this.player.style.left);
+              let left_hit = Math.abs(left - player_left);
+              
+              if( top + this.height_difference >= this.top_hit && left_hit < this.cube_width ){
+
+                  if(cube.type === 'bang'){
+                    game.stopGame();
+                    clearInterval(game.timer)
+                    game.times = '死啦 ？？';
+                    return false;
+                  }
+
+                  if(cube.type === 'diamond'){
+                    game.score += 2;
+                  }else if(cube.type === 'timer'){
+                    game.times += 5;
+                  }else{
+                    game.score ++;
+                  }
+
+                  this.remove_cube(cube);
+                  return;
+              }
+
+              if(cube.top >= game.limit){
+                this.remove_cube(cube);
+                return;
+              }
+            },
+
+            remove_cube(cube){
+                clearInterval(this.timer[cube.round]);
+                Vue.delete(this.timer, cube.round);
+                $('#'+cube.id).remove();
+            }
+          }
+      };
+
+      const player = {
+        template: "#player-data",
+        props: [ 'moving', 'player_left' ],
+        data(){
+          return {
+            left: 0,
+            max_left: 0,
+          }
+        },
+        mounted(){
+          this.left = this.player_left;
+          this.max_left = (data.aisle * parseInt(cube_skin.width)) - parseInt(player_skin.width);
+        },
+        computed: {
+            skin(){
+
+              if(this.moving){
+                if(game.direction == 'L'){
+                  this.left -= data.player_speed;
+                }else if(game.direction == 'R'){
+                  this.left += data.player_speed;
+                }
+
+                if(this.left <= 0)
+                  this.left = 0;
+
+                if(this.left >= this.max_left)
+                  this.left = this.max_left;
+              }
+
+              return {
+                'width': player_skin.width,
+                'height': player_skin.height,
+                'top': player_skin.top,
+                'left': this.left + 'px'
+              };
+            },
+
+        }
+      };
+
+      const data = {
+          box : [],
+          status : false, //遊戲狀態
+          aisle : 12,  //方塊通道
+          create_speed : 1000,  //創造方塊時間
+          down_speed : 50,  //方塊降落速度
+          round : 0,
+          limit : 400, //最大範圍
+          cube_spacing : 20, //每個方塊間距
+          min_row_cubes : 3, //每行最少掉落幾塊
+          max_row_cubes : 6, //每行最多掉落幾塊
+          direction: '',  //使用者方向
+          moving : 0,  //移動
+          player_left: 0,  //初始位置
+          score: 0,  //分數
+          player_speed: 30,  //移動速度
+          ready_times: 3,
+          times: 10,  //遊戲秒數
+          game_timer:'',  //計時器
+          ready_timer:'',
+      };
+
+      const game = new Vue({
+          el: "#gameContent",
+          data: data,
+          components:{ player, cubeData },
+          mounted(){
+              document.getElementById('gameContent').style.width = this.aisle * parseInt(cube_skin.width)  + 'px';
+              document.getElementById('gameContent').style.height = this.limit + parseInt(player_skin.height) + 'px';
+
+              this.startGame();
+
+              this.ready_timer = setInterval(() => {
+                this.ready_times--;
+
+                if(this.ready_times == 0){
+                  clearInterval(this.ready_timer);
+                }
+              },1000);
+          },
+          computed: {
+            set_player_left(){
+              this.player_left = (this.aisle * parseInt(cube_skin.width) / 2) - (parseInt(player_skin.width) / 2);
+              return this.player_left;
+            },
+            ready_times_status(){
+              return{
+                'display': this.ready_times == 0 ? 'none' : ''
+              }
+            },
+            times_status(){
+              return{
+                'display': this.ready_times == 0 ? '' : 'none'
+              }
+            }      
+          },
+          watch:{
+            times(){
+              if(this.times == 0){
+                clearInterval(this.game_timer);
+                game.times = '時間到';
+                this.stopGame();
+
+                $('.cube').remove();
+              }
+            }
+          },
+          methods:{
+              startGame(){
+                  if(this.status){
+                    return false;
+                  }
+
+                  setTimeout(()=>{
+                    this.beforeStart(this.times);
+                    this.makeCubeRow();
+                  }, (this.ready_times) * 1000);
+              },
+
+              makeCubeRow(){
+                  //每秒產生方塊
+                  this.status = setInterval(() => {
+                      this.round ++ ;
+                      let count = Math.floor(Math.random() * (this.max_row_cubes - this.min_row_cubes + 1)) + this.min_row_cubes;   //一行產生幾個方塊
+                      let num = this.randAisle( count ); //每個方塊出現在第幾個通道
+                      for(let i = 0; i < num.length; i++){
+                          this.createCube(num[i]);
+                      }
+                  },this.create_speed);
+              },
+
+              createCube(i){
+                  let id = 'cube' + (this.round) + (i);
+                  let left = i * (parseInt(cube_skin.width));
+
+                  let rand = Math.floor((Math.random() * 20) + 1); //隨機產炸彈
+
+                  let type = 'coin';
+                  switch(rand){
+                      case 1:
+                      case 2:
+                      case 3:
+                      case 4:
+                        type = 'bang';
+                      break;
+
+                      case 6:
+                      case 7:
+                        type = 'diamond';
+                      break;
+
+                      case 20:
+                        type = 'timer';
+                      break;
+                  }
+
+                  let cube = { 
+                    'id' :id, 
+                    'left' :left, 
+                    'top' :0,
+                    'round' :this.round,
+                    'type' :type
+                  };
+                  
+                  this.box.push(cube);
+              },
+
+              beforeStart(times){
+                this.times = 'GO';
+
+                setTimeout(()=>{
+                  this.times = times;
+
+                  this.startTimer(); //開始計時
+
+                }, this.create_speed);
+              },
+
+              startTimer(){
+                this.game_timer = setInterval(() => {
+                  if(!isNaN(this.times)){
+                    if(this.times > 0){
+                      this.times--;
+                    }
+                  }
+                },1000);
+              },
+
+              stopGame(){
+                  clearInterval(this.status);
+                  this.status = false;
+              },
+
+              randAisle(count){
+                  let arr = new Array(this.aisle);
+                  for(let i = 0; i < this.aisle ; i++){
+                      arr[i] = i;
+                  }
+
+                  let out = [];
+                  for(let i = 0; i < count; i++){
+                      let idx = parseInt(Math.random()*arr.length);
+                      out.push(arr[idx]);
+                      arr.splice(idx,1);    
+                  }
+                  return out;
+              },
+
+              playerMove(direction){
+                this.direction = direction;
+                this.moving++;
+              }
+          }
+        
+      });
+
+
+
+      document.addEventListener('keydown', (event) => {
+        switch(event.code){
+            case "ArrowLeft":
+              game.playerMove('L'); 
+              break;
+            case "ArrowRight":
+              game.playerMove('R');
+              break;
+        }
+      });
+
+    })(Vue)
+
+</script>
